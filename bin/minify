@@ -1,0 +1,57 @@
+#!/usr/bin/env php
+<?php
+array_shift($argv);
+
+$options = [
+  '--suffix' => '',
+  '--verbose' => false,
+];
+foreach ($argv as $pn) {
+  $parts = explode('=', $pn);
+  $pn = trim($parts[0]);
+  if (in_array($pn, array_keys($options))) {
+    $options[$pn] = (isset($parts[1]) ? trim($parts[1]) : true);
+  }
+}
+
+list($src, $tgt) = $argv;
+$autoloadCandidates = [
+  __DIR__.'/../../../autoload.php',
+  __DIR__.'/../vendor/autoload.php',
+];
+
+$ready = false;
+foreach ($autoloadCandidates as $autoload) {
+  if (is_readable($autoload)) {
+    include $autoload;
+    $ready = true;
+    if ($options['--verbose'] === true) {
+      echo "Using autoload: {$autoload}\n";
+    }
+    break;
+  }
+}
+if (!$ready) {
+  throw new \Exception('Unable to find autoload.php');
+}
+
+$files = scandir($src);
+foreach ($files as $inputFile) {
+  if (substr($inputFile, 0, 2) === '__') continue;
+  $fullSourceFile = "{$src}/{$inputFile}";
+  if (in_array($inputFile, ['.', '..']) || is_dir($fullSourceFile)) continue;
+  if (is_readable($fullSourceFile)) {
+    // $ext = pathinfo($inputFile, PATHINFO_EXTENSION);
+    // $bext = pathinfo($inputFile, PATHINFO_FILENAME);
+    // $outputBaseName = "{$bext}{$options['--suffix']}.{$ext}";
+    if ($options['--verbose'] === true) {
+      echo "\tMinifying: {$inputFile} as {$inputFile}...\n";
+    }
+    \AssetsDispatcher\DispatcherFactory::getPipe(
+      $inputFile, // Source file
+      $src, // Source directory
+      $tgt, // Target directory
+      false // false == keep original name without a version number
+    )->createCache();
+  }
+}
