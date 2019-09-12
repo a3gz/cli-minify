@@ -47,11 +47,17 @@ foreach ($files as $inputFile) {
     if ($options['--verbose'] === true) {
       echo "\tMinifying: {$inputFile} as {$inputFile}...\n";
     }
-    \AssetsDispatcher\DispatcherFactory::getPipe(
-      $inputFile, // Source file
-      $src, // Source directory
-      $tgt, // Target directory
-      false // false == keep original name without a version number
-    )->createCache();
+    try {
+      \AssetsDispatcher\DispatcherFactory::getPipe(
+        $inputFile, // Source file
+        $src, // Source directory
+        $tgt, // Target directory
+        false // false == keep original name without a version number
+        )->createCache();
+    } catch (\Exception $e) {
+      if ($options['--verbose'] === true) {
+        echo "\t{$e->getMessage()}. Ignoring.\n";
+      }
+    }
   }
 }
