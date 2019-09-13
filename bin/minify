@@ -1,63 +1,137 @@
 #!/usr/bin/env php
 <?php
-array_shift($argv);
+function minify($c) {
+  $minified = preg_replace('#^\s*//.+$#m', "", $c);
+  $ptrn1 = <<<'EOS'
+(?sx)
+# quotes
+(
+"(?:[^"\\]++|\\.)*+"
+| '(?:[^'\\]++|\\.)*+'
+)
+|
+# comments
+/\* (?> .*? \*/ )
+EOS;
 
-$options = [
-  '--suffix' => '',
-  '--verbose' => false,
-];
-foreach ($argv as $pn) {
-  $parts = explode('=', $pn);
-  $pn = trim($parts[0]);
-  if (in_array($pn, array_keys($options))) {
-    $options[$pn] = (isset($parts[1]) ? trim($parts[1]) : true);
-  }
-}
+    $ptrn2 = <<<'EOS'
+(?six)
+# quotes
+(
+"(?:[^"\\]++|\\.)*+"
+| '(?:[^'\\]++|\\.)*+'
+)
+|
+# ; before } (and the spaces after it while we're here)
+\s*+ ; \s*+ ( } ) \s*+
+|
+# all spaces around meta chars/operators
+\s*+ ( [*$~^|]?+= | [{};,>~+-] | !important\b ) \s*+
+|
+# spaces right of ( [ :
+( [[(:] ) \s++
+|
+# spaces left of ) ]
+\s++ ( [])] )
+|
+# spaces left (and right) of :
+\s++ ( : ) \s*+
+# but not in selectors: not followed by a {
+(?!
+(?>
+    [^{}"']++
+| "(?:[^"\\]++|\\.)*+"
+| '(?:[^'\\]++|\\.)*+' 
+)*+
+{
+)
+|
+# spaces at beginning/end of string
+^ \s++ | \s++ \z
+|
+# double spaces to single
+(\s)\s+
+EOS;
+  $minified = preg_replace("%$ptrn1%", '$1', $minified);
+  $minified = preg_replace("%$ptrn2%", '$1$2$3$4$5$6$7', $minified);
+  return $minified;
+} // minify()
 
-list($src, $tgt) = $argv;
-$autoloadCandidates = [
-  __DIR__.'/../../../autoload.php',
-  __DIR__.'/../vendor/autoload.php',
-];
+function main($argv) {
+  array_shift($argv);
+  $src = array_shift($argv);
+  $tgt = array_shift($argv);
 
-$ready = false;
-foreach ($autoloadCandidates as $autoload) {
-  if (is_readable($autoload)) {
-    include $autoload;
-    $ready = true;
-    if ($options['--verbose'] === true) {
-      echo "Using autoload: {$autoload}\n";
-    }
-    break;
-  }
-}
-if (!$ready) {
-  throw new \Exception('Unable to find autoload.php');
-}
+  $options = [
+    '--suffix' => '',
+    '--filetypes' => false,
+    '--verbose' => false,
+  ];
+  foreach ($argv as $pn) {
+    $parts = explode('=', $pn);
+    $pn = trim($parts[0]);
+    if (in_array($pn, array_keys($options))) {
+      $options[$pn] = (isset($parts[1]) ? trim($parts[1]) : true);
 
-$files = scandir($src);
-foreach ($files as $inputFile) {
-  if (substr($inputFile, 0, 2) === '__') continue;
-  $fullSourceFile = "{$src}/{$inputFile}";
-  if (in_array($inputFile, ['.', '..']) || is_dir($fullSourceFile)) continue;
-  if (is_readable($fullSourceFile)) {
-    // $ext = pathinfo($inputFile, PATHINFO_EXTENSION);
-    // $bext = pathinfo($inputFile, PATHINFO_FILENAME);
-    // $outputBaseName = "{$bext}{$options['--suffix']}.{$ext}";
-    if ($options['--verbose'] === true) {
-      echo "\tMinifying: {$inputFile} as {$inputFile}...\n";
-    }
-    try {
-      \AssetsDispatcher\DispatcherFactory::getPipe(
-        $inputFile, // Source file
-        $src, // Source directory
-        $tgt, // Target directory
-        false // false == keep original name without a version number
-        )->createCache();
-    } catch (\Exception $e) {
-      if ($options['--verbose'] === true) {
-        echo "\t{$e->getMessage()}. Ignoring.\n";
+      if ($pn === '--filetypes') {
+        $x = explode(',', $options['--filetypes']);
+        if (count($x) > 1) {
+          $options['--filetypes'] = $x;
+        }
       }
     }
   }
-}
+  
+  $autoloadCandidates = [
+    __DIR__.'/../../../autoload.php',
+    __DIR__.'/../vendor/autoload.php',
+  ];
+  $ready = false;
+  foreach ($autoloadCandidates as $autoload) {
+    if (is_readable($autoload)) {
+      include $autoload;
+      $ready = true;
+      if ($options['--verbose'] === true) {
+        echo "Using autoload: {$autoload}\n";
+      }
+      break;
+    }
+  }
+  if (!$ready) {
+    throw new \Exception('Unable to find autoload.php');
+  }
+  
+  $files = scandir($src);
+  foreach ($files as $inputFile) {
+    if (substr($inputFile, 0, 2) === '__') continue;
+    $fullSourceFile = "{$src}/{$inputFile}";
+    if (in_array($inputFile, ['.', '..']) || is_dir($fullSourceFile)) continue;
+    if (is_readable($fullSourceFile)) {
+      $ext = pathinfo($inputFile, PATHINFO_EXTENSION);
+
+      if (is_array($options['--filetypes'])
+        && !in_array($ext, $options['--filetypes'])
+      ) {
+        continue;
+      }
+
+      $bext = pathinfo($inputFile, PATHINFO_FILENAME);
+      $outputBaseName = "{$bext}{$options['--suffix']}.{$ext}";
+      $fullOutputFile = "{$tgt}/{$outputBaseName}";
+      if ($options['--verbose'] === true) {
+        echo "\tMinifying: {$inputFile} as {$outputBaseName}...\n";
+      }
+      try {
+        $content = file_get_contents($fullSourceFile);
+        $minifiedContent = minify($content);
+        file_put_contents($fullOutputFile, $content);
+      } catch (\Exception $e) {
+        if ($options['--verbose'] === true) {
+          echo "\t{$e->getMessage()}. Ignoring.\n";
+        }
+      }
+    }
+  }
+} // main
+
+main($argv);

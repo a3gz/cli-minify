@@ -1,9 +1,6 @@
 {
   "name": "a3gz/cli-minify",
   "description": "Command line minifier",
-  "require": {
-    "a3gz/assets-dispatcher": "^1"
-  },
   "license": "MIT",
   "authors": [
     {
@@ -11,5 +8,8 @@
       "email": "alejandro@roetal.com"
     }
   ],
+  "scripts": {
+    "test": "php bin/minify test/src/ test/dist --filetypes=js,css --suffix=.min --verbose"
+  },
   "bin": ["bin/minify"]
 }
