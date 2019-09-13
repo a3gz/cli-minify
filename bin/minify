@@ -75,7 +75,7 @@ function main($argv) {
 
       if ($pn === '--filetypes') {
         $x = explode(',', $options['--filetypes']);
-        if (count($x) > 1) {
+        if (count($x) > 0) {
           $options['--filetypes'] = $x;
         }
       }
@@ -113,21 +113,21 @@ function main($argv) {
         && !in_array($ext, $options['--filetypes'])
       ) {
         continue;
-      }
-
-      $bext = pathinfo($inputFile, PATHINFO_FILENAME);
-      $outputBaseName = "{$bext}{$options['--suffix']}.{$ext}";
-      $fullOutputFile = "{$tgt}/{$outputBaseName}";
-      if ($options['--verbose'] === true) {
-        echo "\tMinifying: {$inputFile} as {$outputBaseName}...\n";
-      }
-      try {
-        $content = file_get_contents($fullSourceFile);
-        $minifiedContent = minify($content);
-        file_put_contents($fullOutputFile, $content);
-      } catch (\Exception $e) {
+      } else {
+        $bext = pathinfo($inputFile, PATHINFO_FILENAME);
+        $outputBaseName = "{$bext}{$options['--suffix']}.{$ext}";
+        $fullOutputFile = "{$tgt}/{$outputBaseName}";
         if ($options['--verbose'] === true) {
-          echo "\t{$e->getMessage()}. Ignoring.\n";
+          echo "\tMinifying: {$inputFile} as {$outputBaseName}...\n";
+        }
+        try {
+          $content = file_get_contents($fullSourceFile);
+          $minifiedContent = minify($content);
+          file_put_contents($fullOutputFile, $minifiedContent);
+        } catch (\Exception $e) {
+          if ($options['--verbose'] === true) {
+            echo "\t{$e->getMessage()}. Ignoring.\n";
+          }
         }
       }
     }
